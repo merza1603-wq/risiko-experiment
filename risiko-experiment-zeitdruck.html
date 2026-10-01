@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entscheidungen unter Zeitdruck</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1B2430;--paper:#EEF0F2;--panel:#FFFFFF;--line:#C9CDD3;--steel:#3B6E8F;--steel-dim:#DCE6EC;--brick:#C4483B;--moss:#4C7A64;--muted:#5B6472}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper)}
+#risiko-root{font-family:'IBM Plex Sans',system-ui,sans-serif;color:var(--ink);min-height:100vh;display:flex;justify-content:center}
+.rx-shell{width:100%;max-width:640px;display:flex;flex-direction:column;min-height:560px;padding:28px 24px 32px}
+.rx-headline{font-family:'Fraunces',serif;font-weight:600;line-height:1.15}
+.rx-landing,.rx-end{display:flex;flex-direction:column;justify-content:center;flex:1;gap:22px}
+.rx-landing h1,.rx-end h1{font-size:clamp(28px,5vw,38px);margin:0}
+.rx-landing p,.rx-end p{font-size:15.5px;line-height:1.6;color:var(--muted);margin:0;max-width:52ch}
+.rx-facts{display:flex;flex-wrap:wrap;gap:10px}
+.rx-fact{font-size:12.5px;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:5px 10px;background:var(--panel)}
+.rx-start-btn{align-self:flex-start;margin-top:8px;font:600 16px 'IBM Plex Sans',sans-serif;color:#fff;background:var(--steel);border:0;padding:13px 26px;border-radius:3px;cursor:pointer}
+.rx-start-btn:disabled{opacity:.6;cursor:default}
+.rx-quiz{display:flex;flex-direction:column;flex:1}
+.rx-timerbar-track{height:4px;width:100%;background:var(--line);border-radius:2px;overflow:hidden;margin-bottom:6px}
+.rx-timerbar-fill{height:100%;width:100%;background:var(--steel);transform-origin:left}
+.rx-meta-row{display:flex;justify-content:space-between;align-items:baseline;margin:10px 0 26px;font-size:13px;color:var(--muted)}
+.rx-countdown{font-variant-numeric:tabular-nums;font-weight:600;font-size:15px}
+.rx-progress-dots{display:flex;gap:6px;margin-bottom:18px}
+.rx-dot{width:7px;height:7px;border-radius:50%;background:var(--line)}
+.rx-dot.done{background:var(--moss)} .rx-dot.current{background:var(--steel)}
+.rx-question{font-size:clamp(20px,3.4vw,25px);margin:0 0 26px}
+.rx-options{display:flex;flex-direction:column;gap:11px;flex:1}
+.rx-option{text-align:left;font:15.5px/1.45 'IBM Plex Sans',sans-serif;color:var(--ink);background:var(--panel);border:1.5px solid var(--line);border-radius:4px;padding:14px 16px;cursor:pointer}
+.rx-option:hover{border-color:var(--steel)} .rx-option.selected{border-color:var(--steel);background:var(--steel-dim)}
+.rx-option:disabled{cursor:default;opacity:.75}
+.rx-status{font-size:14px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.rx-timerbar-fill{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="risiko-root"></div>
+<script>
+(function(){
+  // ============================================================
+  // EINMALIG EINTRAGEN:
+  // Hier die URL deiner bereitgestellten Google-Apps-Script-Web-App
+  // eintragen. Sie beginnt normalerweise mit https://script.google.com/...
+  // ============================================================
+  const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyu9m3rp-Ez4xv-pYOJYWB7bxPHBXgAZEdxU0TAj0LcBcheIpXycCBh9hbKYqC0NZxM/exec';
+
+  // Die Fragen stammen unverändert aus deiner bisherigen HTML-Datei.
+  const QUESTIONS = [
+    {
+      id:'q1', domain:'finanziell', timeLimit:9,
+      prompt:'Du gewinnst bei einem Wettbewerb und kannst nun entscheiden zwischen:',
+      options:[
+        'sicher Fr. 50 erhalten',
+        '50% Chance auf Fr. 120',
+        '20% Chance auf Fr. 300',
+        'Verstehe ich nicht'
+      ]
+    },
+    {
+      id:'q2', domain:'finanziell', timeLimit:11,
+      prompt:'Du hast Fr. 500 angespart. Was würdest du am Ehesten mit dem Geld machen?',
+      options:[
+        'Auf dem Sparkonto lassen',
+        'Fr. 100 investieren und den Rest weiter sparen',
+        'die Hälfte investieren und den Rest weiter sparen',
+        'Verstehe ich nicht'
+      ]
+    },
+    {
+      id:'q3', domain:'finanziell', timeLimit:12,
+      prompt:'Du findest ein gebrauchtes Handy, welches deutlich günstiger ist als üblich angeboten wird, aber du bekommst keine Garantie oder Rückgaberecht. Was machst du?',
+      options:[
+        'Nicht Kaufen',
+        'Kaufen nach kurzem Nachfragen zum Zustand des Handys',
+        'Sofort kaufen',
+        'Verstehe ich nicht'
+      ]
+    },
+    {
+      id:'q4', domain:'finanziell', timeLimit:14,
+      prompt:'Du hast mit einem geschenkten Los Fr. 10 gewonnen und kannst die Fr. 10 auszahlen lassen oder ein weiteres Los kaufen für Fr. 5. Was machst du?',
+      options:[
+        'auf sicher die Fr. 10 auszahlen lassen',
+        'erneut ein Los kaufen und 50% Chance auf einen Gewinn von Fr. 20',
+        'zwei Lose kaufen und zwei Mal 50% Chance auf einen Gewinn von Fr. 20 haben',
+        'Verstehe ich nicht'
+      ]
+    },
+    {
+      id:'q5', domain:'finanziell', timeLimit:13,
+      prompt:'Ein guter Freund von dir möchte, dass du in ein neues Projekt einer Unternehmung investierst. Dafür müsstest du ein Teil deines Ersparten investieren, ohne einen garantierten Erfolg zu haben. Was machst du?',
+      options:[
+        'nichts investieren',
+        '10% deines Ersparten investieren',
+        '50% deines Ersparten investieren',
+        'Verstehe ich nicht'
+      ]
+    },
+    {
+      id:'q6', domain:'finanziell', timeLimit:9,
+      prompt:'Du hast die Wahl zwischen:',
+      options:[
+        'Sofort Fr. 70',
+        '50% Chance auf Fr. 150',
+        '20% Chance auf Fr. 400',
+        'Verstehe ich nicht'
+      ]
+    },
+    {
+      id:'q7', domain:'finanziell', timeLimit:11,
+      prompt:'Du hast bei einem Wettbewerb gewonnen und hast folgende Auswahl bei den Gewinnen:',
+      options:[
+        'sicher einen Gutschein im Wert von Fr. 60',
+        '50% Chance auf einen Gutschein im Wert von Fr. 140',
+        '20% Chance auf einen Gutschein im Wert von Fr. 300',
+        'Verstehe ich nicht'
+      ]
+    },
+    {
+      id:'q8', domain:'finanziell', timeLimit:12,
+      prompt:'Dein Arbeitgeber gibt dir zwei Modelle für das nächste Jahr zur Auswahl:',
+      options:[
+        'Eine sichere, aber kleine Lohnerhöhung',
+        'Eine Bonus-Regelung, bei der du je nach Erfolg des Unternehmens deutlich mehr, aber je nach dem auch nichts zusätzlich bekommst',
+        'Verstehe ich nicht'
+      ]
+    },
+    {
+      id:'q9', domain:'finanziell', timeLimit:14,
+      prompt:'Du wettest mit deinen Freunden bei einem Turnier auf das Ergebnis. Kurz vor Wettschluss hast du die Möglichkeit deinen Einsatz zu erhöhen, um einen möglich höheren Gewinn zu erzielen oder einen höheren Verlust zu erzielen. Was tust du?',
+      options:[
+        'Einsatz nicht verändern',
+        'Einsatz leicht erhöhen',
+        'Einsatz deutlich erhöhen',
+        'Verstehe ich nicht'
+      ]
+    },
+    {
+      id:'q10', domain:'einschaetzung', timeLimit:10,
+      prompt:'Wie würdest du deine eigene Risikobereitschaft bei allgemeinen Geldangelegenheiten einschätzen?',
+      options:[
+        'Überhaupt nicht risikobereit',
+        'Eher wenig risikobereit',
+        'Eher risikobereit',
+        'Sehr Risikobereit'
+      ]
+    }
+  ];
+
+  const root = document.getElementById('risiko-root');
+  let submitted = false;
+
+  function escapeHtml(str){
+    const d=document.createElement('div'); d.textContent=str; return d.innerHTML;
+  }
+
+  function renderLanding(){
+    root.innerHTML = `
+      <div class="rx-shell"><div class="rx-landing">
+        <h1 class="rx-headline">Entscheidungen unter Zeitdruck</h1>
+        <p>Du siehst gleich ${QUESTIONS.length} kurze Situationen mit mehreren Antwortmöglichkeiten. Für jede Frage hast du nur wenige Sekunden Zeit. Läuft die Zeit ab, geht es automatisch zur nächsten Frage weiter. Ein Zurückgehen ist nicht möglich.</p>
+        <div class="rx-facts">
+          <span class="rx-fact">Anonym, keine Registrierung</span>
+          <span class="rx-fact">${QUESTIONS.length} Fragen</span>
+          <span class="rx-fact">ca. 2 Minuten</span>
+          <span class="rx-fact">Smartphone & Computer</span>
+        </div>
+        <button class="rx-start-btn" id="rx-start">Experiment starten</button>
+      </div></div>`;
+    document.getElementById('rx-start').addEventListener('click', startQuiz);
+  }
+
+  function startQuiz(){
+    if (GOOGLE_APPS_SCRIPT_URL.startsWith('HIER_')) {
+      alert('Die Umfrage ist noch nicht mit dem Datenspeicher verbunden. Bitte die Web-App-URL im HTML eintragen.');
+      return;
+    }
+    const participantId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+'-'+Math.random().toString(16).slice(2));
+    const state={participantId,startedAt:new Date().toISOString(),index:0,answers:[],timerId:null,questionStartedAt:0};
+    renderQuestion(state);
+  }
+
+  function renderQuestion(state){
+    if(state.timerId){clearInterval(state.timerId);state.timerId=null;}
+    if(state.index>=QUESTIONS.length){finish(state);return;}
+    const q=QUESTIONS[state.index];
+    const dotsHtml=QUESTIONS.map((_,i)=>`<span class="rx-dot ${i<state.index?'done':i===state.index?'current':''}"></span>`).join('');
+    root.innerHTML=`
+      <div class="rx-shell"><div class="rx-quiz">
+        <div class="rx-timerbar-track"><div class="rx-timerbar-fill" id="rx-bar"></div></div>
+        <div class="rx-meta-row"><span>Frage ${state.index+1} von ${QUESTIONS.length}</span><span class="rx-countdown" id="rx-countdown">${q.timeLimit}s</span></div>
+        <div class="rx-progress-dots">${dotsHtml}</div>
+        <h2 class="rx-question rx-headline">${escapeHtml(q.prompt)}</h2>
+        <div class="rx-options" id="rx-options">
+          ${q.options.map((opt,i)=>`<button class="rx-option" data-i="${i}">${escapeHtml(opt)}</button>`).join('')}
+        </div>
+      </div></div>`;
+    const bar=document.getElementById('rx-bar'), countdown=document.getElementById('rx-countdown');
+    const buttons=Array.from(document.querySelectorAll('.rx-option'));
+    let answered=false;
+    state.questionStartedAt=performance.now();
+    bar.style.transition='none'; bar.style.transform='scaleX(1)'; bar.style.background='var(--steel)';
+    void bar.offsetWidth;
+    bar.style.transition=`transform ${q.timeLimit}s linear, background .3s ease`;
+    requestAnimationFrame(()=>bar.style.transform='scaleX(0)');
+    let remaining=q.timeLimit;
+    state.timerId=setInterval(()=>{
+      remaining-=1; countdown.textContent=Math.max(remaining,0)+'s';
+      if(remaining<=2 && remaining>=0) bar.style.background='var(--brick)';
+      if(remaining<=0){
+        clearInterval(state.timerId); state.timerId=null;
+        if(!answered){answered=true;commitAnswer(state,q,null,true);}
+      }
+    },1000);
+    buttons.forEach(btn=>btn.addEventListener('click',()=>{
+      if(answered)return; answered=true; clearInterval(state.timerId);
+      buttons.forEach(b=>b.disabled=true); btn.classList.add('selected');
+      const chosen=q.options[Number(btn.dataset.i)];
+      setTimeout(()=>commitAnswer(state,q,chosen,false),320);
+    }));
+  }
+
+  function commitAnswer(state,q,chosenText,timedOut){
+    const reactionMs=Math.round(performance.now()-state.questionStartedAt);
+    state.answers.push({id:q.id,domain:q.domain,prompt:q.prompt,selected:chosenText,timedOut,timedOutReason:timedOut?'time_limit':'',reactionMs});
+    state.index++; renderQuestion(state);
+  }
+
+  async function finish(state){
+    if(submitted)return;
+    submitted=true;
+    const payload={
+      participantId:state.participantId,
+      condition:'zeitdruck',
+      startedAt:state.startedAt,
+      finishedAt:new Date().toISOString(),
+      answers:state.answers
+    };
+    root.innerHTML=`<div class="rx-shell"><div class="rx-end">
+      <h1 class="rx-headline">Danke fürs Mitmachen.</h1>
+      <p id="save-status">Deine Antworten werden gerade anonym gespeichert.</p>
+    </div></div>`;
+    try{
+      // Unsichtbares Formular statt fetch: funktioniert auch bei Cross-Origin
+      // Google-Apps-Script-Web-Apps ohne CORS-Konfiguration.
+      const form=document.createElement('form');
+      form.method='POST'; form.action=GOOGLE_APPS_SCRIPT_URL;
+      form.target='rx-submit-frame'; form.style.display='none';
+      const input=document.createElement('input');
+      input.name='payload'; input.value=JSON.stringify(payload);
+      form.appendChild(input); document.body.appendChild(form);
+      form.submit(); form.remove();
+      setTimeout(()=>{
+        const el=document.getElementById('save-status');
+        if(el) el.textContent='Danke. Deine Antworten wurden übermittelt. Du kannst dieses Fenster jetzt schliessen.';
+      },1200);
+    }catch(err){
+      const el=document.getElementById('save-status');
+      if(el) el.textContent='Die Übermittlung ist fehlgeschlagen. Bitte informiere die Versuchsleitung.';
+      console.error(err);
+    }
+  }
+
+  // Unsichtbarer Zielrahmen für die Datenübermittlung.
+  const frame=document.createElement('iframe');
+  frame.name='rx-submit-frame'; frame.style.display='none';
+  document.body.appendChild(frame);
+  renderLanding();
+})();
+</script>
+</body>
+</html>
