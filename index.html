@@ -46,7 +46,13 @@ body{margin:0;background:var(--paper)}
   // Hier die URL deiner bereitgestellten Google-Apps-Script-Web-App
   // eintragen. Sie beginnt normalerweise mit https://script.google.com/...
   // ============================================================
-  const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyOX0IkPeTIOQ-h2Cd0m9NOBiz57YPuyYFvhUGTh9tYJX6Csb4qpa82RJDiVdhg_8pm/exec';
+  const GOOGLE_APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyu9m3rp-Ez4xv-pYOJYWB7bxPHBXgAZEdxU0TAj0LcBcheIpXycCBh9hbKYqC0NZxM/exec';
+
+  const DEMOGRAPHICS = [
+    {id:'age',prompt:'Wie alt bist du?',options:['13–15','16–18','19–21']},
+    {id:'gender',prompt:'Was ist dein Geschlecht?',options:['Männlich','Weiblich','Divers']},
+    {id:'employment',prompt:'Welcher Beschäftigungsstatus trifft am ehesten auf dich zu?',options:['Ausbildung','weiterführende Schule','Grundschule','Arbeitnehmer/in']}
+  ];
 
   // Die Fragen stammen unverändert aus deiner bisherigen HTML-Datei.
   const QUESTIONS = [
@@ -162,10 +168,10 @@ body{margin:0;background:var(--paper)}
     root.innerHTML = `
       <div class="rx-shell"><div class="rx-landing">
         <h1 class="rx-headline">Entscheidungen unter Zeitdruck</h1>
-        <p>Du siehst gleich ${QUESTIONS.length} kurze Situationen mit mehreren Antwortmöglichkeiten. Für jede Frage hast du nur wenige Sekunden Zeit. Läuft die Zeit ab, geht es automatisch zur nächsten Frage weiter. Ein Zurückgehen ist nicht möglich.</p>
+        <p>Zuerst beantwortest du 3 allgemeine Fragen ohne Zeitdruck. Danach folgen ${QUESTIONS.length} kurze Situationen mit mehreren Antwortmöglichkeiten. Für jede Frage hast du nur wenige Sekunden Zeit. Läuft die Zeit ab, geht es automatisch zur nächsten Frage weiter. Ein Zurückgehen ist nicht möglich.</p>
         <div class="rx-facts">
           <span class="rx-fact">Anonym, keine Registrierung</span>
-          <span class="rx-fact">${QUESTIONS.length} Fragen</span>
+          <span class="rx-fact">${QUESTIONS.length + DEMOGRAPHICS.length} Fragen</span>
           <span class="rx-fact">ca. 2 Minuten</span>
           <span class="rx-fact">Smartphone & Computer</span>
         </div>
@@ -180,8 +186,23 @@ body{margin:0;background:var(--paper)}
       return;
     }
     const participantId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now())+'-'+Math.random().toString(16).slice(2));
-    const state={participantId,startedAt:new Date().toISOString(),index:0,answers:[],timerId:null,questionStartedAt:0};
-    renderQuestion(state);
+    const state={participantId,startedAt:new Date().toISOString(),index:0,demographicIndex:0,demographics:{},answers:[],timerId:null,questionStartedAt:0};
+    renderDemographic(state);
+  }
+
+  function renderDemographic(state){
+    const q=DEMOGRAPHICS[state.demographicIndex];
+    root.innerHTML=`<div class="rx-shell"><div class="rx-quiz">
+      <div class="rx-meta-row"><span>Allgemeine Angaben · Frage ${state.demographicIndex+1} von ${DEMOGRAPHICS.length}</span><span>Ohne Zeitlimit</span></div>
+      <h2 class="rx-question rx-headline">${escapeHtml(q.prompt)}</h2>
+      <div class="rx-options">${q.options.map((opt,i)=>`<button class="rx-option" data-i="${i}">${escapeHtml(opt)}</button>`).join('')}</div>
+    </div></div>`;
+    document.querySelectorAll('.rx-option').forEach(btn=>btn.addEventListener('click',()=>{
+      state.demographics[q.id]=q.options[Number(btn.dataset.i)];
+      state.demographicIndex++;
+      if(state.demographicIndex<DEMOGRAPHICS.length)renderDemographic(state);
+      else renderQuestion(state);
+    }));
   }
 
   function renderQuestion(state){
@@ -236,6 +257,7 @@ body{margin:0;background:var(--paper)}
     const payload={
       participantId:state.participantId,
       condition:'zeitdruck',
+      demographics:state.demographics,
       startedAt:state.startedAt,
       finishedAt:new Date().toISOString(),
       answers:state.answers
